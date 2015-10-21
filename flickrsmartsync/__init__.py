@@ -3,10 +3,13 @@
 import argparse
 import os
 import logging
+import re
+import sys
 from logging.handlers import SysLogHandler
 from sync import Sync
 from local import Local
 from remote import Remote
+from hash import Hash
 
 __author__ = 'faisal'
 # todo get from setup.cfg
@@ -19,6 +22,26 @@ formatter = logging.Formatter('flickrsmartsync %(message)s')
 hdlr.setFormatter(formatter)
 logger.addHandler(hdlr)
 logger.setLevel(logging.INFO)
+
+flickr_api_filename = os.path.join(os.environ['HOME'],'.flickr-api')
+if not os.path.exists(flickr_api_filename):
+    print "You must put your Flickr API key and secret in "+flickr_api_filename
+
+configuration = {}
+for line in open(flickr_api_filename):
+    if len(line.strip()) == 0:
+        continue
+    m = re.search('\s*(\S+)\s*=\s*(\S+)\s*$',line)
+    if m:
+        configuration[m.group(1)] = m.group(2)
+    if not m:
+        print "Each line of "+flickr_api_filename+" must be either empty"
+        print "or of the form 'key = value'"
+        sys.exit(1)
+    continue
+
+if not ('api_key' in configuration and 'api_secret' in configuration):
+    print "Both api_key and api_secret must be defined in "+flickr_api_filename
 
 
 def main():

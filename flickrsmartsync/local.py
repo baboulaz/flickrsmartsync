@@ -1,9 +1,9 @@
-from iptcinfo import IPTCInfo
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
-import time
 import logging
 import os
+import time
+
+import watchdog
+
 
 logger = logging.getLogger("flickrsmartsync")
 
@@ -33,16 +33,6 @@ class Local(object):
                         if r == self.cmd_args.sync_path:
                             skips_root.append(file)
                         else:
-                            # filter by keywords
-                            if keywords:
-                                file_path = os.path.join(r, file)
-                                info = IPTCInfo(file_path, force=True)
-                                matches = keywords.intersection(info.keywords)
-                                if not matches:
-                                    # no matching keyword(s) found, skip file
-                                    logger.info('Skipped [%s] does not match any keyword %s' % (file, list(keywords)))
-                                    continue
-
                             photo_sets.setdefault(r, [])
                             file_path = os.path.join(r, file)
                             file_stat = os.stat(file_path)

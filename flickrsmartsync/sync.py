@@ -1,5 +1,8 @@
-import os
 import logging
+import os
+
+from pip._vendor.distlib.compat import raw_input
+
 
 logger = logging.getLogger("flickrsmartsync")
 
@@ -60,7 +63,33 @@ class Sync(object):
                     self.remote.download(remote_photos[photo], os.path.join(local_photo_set, photo))
                 # upload what doesn't exist remotely
                 for photo in [photo for photo in local_photos if photo not in remote_photos]:
-                    self.remote.upload(os.path.join(local_photo_set, photo), photo, remote_photo_set)          
+                    self.remote.upload(os.path.join(local_photo_set, photo), photo, remote_photo_set) 
+        elif self.cmd_args.sync_from == "up":
+            local_photo_sets = self.local.build_photo_sets(self.cmd_args.sync_path, EXT_IMAGE + EXT_VIDEO)
+            remote_photo_sets = self.remote.get_photo_sets()
+            # First download complete remote sets that are not local
+            for remote_photo_set in remote_photo_sets:
+                local_photo_set = os.path.join(self.cmd_args.sync_path, remote_photo_set).replace("/", os.sep)
+                if local_photo_set not in local_photo_sets:
+                    # TODO: will generate info messages if photo_set is a prefix to other set names
+                    self.cmd_args.download = local_photo_set
+                    self.download()
+            # Now walk our local sets
+            for local_photo_set in sorted(local_photo_sets):
+                remote_photo_set = local_photo_set.replace(self.cmd_args.sync_path, '').replace("/", os.sep)
+                if remote_photo_set not in remote_photo_sets:
+                    # doesn't exist remotely, so all files need uploading
+                    remote_photos = {}
+                else:
+                    # filter by what exists remotely, this is a dict of filename->id
+                    remote_photos = self.remote.get_photos_in_set(remote_photo_set, get_url=True)
+                local_photos = [photo for photo, file_stat in sorted(local_photo_sets[local_photo_set])]
+                # download what doesn't exist locally
+                for photo in [photo for photo in remote_photos if photo not in local_photos]:
+                    self.remote.download(remote_photos[photo], os.path.join(local_photo_set, photo))
+                # upload what doesn't exist remotely
+                for photo in [photo for photo in local_photos if photo not in remote_photos]:
+                    self.remote.upload(os.path.join(local_photo_set, photo), photo, remote_photo_set) 
         else:
             logger.warning("Unsupported sync option: %s" % self.cmd_args.sync_from)
 

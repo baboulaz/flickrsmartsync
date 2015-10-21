@@ -1,10 +1,12 @@
-import HTMLParser
 import json
+import logging
 import os
 import re
 import urllib
+
 import flickrapi
-import logging
+from flickrsmartsync.hash import Hash
+
 
 logger = logging.getLogger("flickrsmartsync")
 
@@ -84,6 +86,31 @@ class Remote(object):
             else:
                 logger.error(result)
 
+	# For adding photo to set
+    def add_set_to_collection(self, set_id, collectionfolder):
+        # If photoset not found in online map create it else add photo to it
+        # Always upload unix style
+        if self.cmd_args.is_windows:
+            folder = folder.replace(os.sep, '/')
+
+        if folder not in self.photo_sets_map:
+            photosets_args = self.args.copy()
+            custom_title = self.get_custom_set_title(self.cmd_args.sync_path + folder)
+            photosets_args.update({'primary_photo_id': photo_id,
+                                   'title': custom_title,
+                                   'description': folder})
+            photo_set = json.loads(self.api.photosets_create(**photosets_args))
+            self.photo_sets_map[folder] = photo_set['photoset']['id']
+            logger.info('Created set [%s] and added photo' % custom_title)
+        else:
+            photosets_args = self.args.copy()
+            photosets_args.update({'photoset_id': self.photo_sets_map.get(folder), 'photo_id': photo_id})
+            result = json.loads(self.api.photosets_addPhoto(**photosets_args))
+            if result.get('stat') == 'ok':
+                logger.info('Successfully added photo to %s' % folder)
+            else:
+                logger.error(result)
+				
     # Get photos in a set
     def get_photos_in_set(self, folder, get_url=False):
         # bug on non utf8 machines dups
@@ -137,7 +164,6 @@ class Remote(object):
 
     def update_photo_sets_map(self):
         # Get your photosets online and map it to your local
-        html_parser = HTMLParser.HTMLParser()
         photosets_args = self.args.copy()
         page = 1
         self.photo_sets_map = {}
@@ -169,6 +195,9 @@ class Remote(object):
                         logger.info('done')
 
     def upload(self, file_path, photo, folder):
+        md5=Hash.md5sum(file_path)
+        sha1=Hash.sha1sum(file_path)
+		tags="sync:folder=\""+folder+"/"+os.path.basename(file_path)+"\" "+Hash.md5_machine_tag_prefix+md5+" "+Hash.sha1_machine_tag_prefix+sha1
         upload_args = {
             'auth_token': self.args["auth_token"],
             # (Optional) The title of the photo.
@@ -184,7 +213,8 @@ class Remote(object):
             # (Optional) Set to 1 for Photo, 2 for Screenshot, or 3 for Other.
             'content_type': 1,
             # (Optional) Set to 1 to keep the photo in global search results, 2 to hide from public searches.
-            'hidden': 2
+            'hidden': 2,
+			'tags' : tags
         }
 
         for i in range(RETRIES):
